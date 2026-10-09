@@ -1,0 +1,12 @@
+# API Keys and environment secrets
+.env
+
+# Python cache and build artifacts
+__pycache__/
+*.pyc
+
+# Raw personal data files & archives
+data.json
+user_data_tiktok.json
+*.zip
+*.csv
