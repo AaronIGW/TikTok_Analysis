@@ -2,70 +2,119 @@ import json
 import pandas as pd
 import numpy as np
 
-def classify_content(row):
-    # 1. First priority: Check any text that survived in Title, Alt, or Sound
-    text = f"{row.get('Title', '')} {row.get('AlternateText', '')} {row.get('Sound', '')}".lower()
-    
-    if any(k in text for k in ["sparking zero", "dragon ball", "budokai"]):
-        return "Dragon Ball: Sparking! ZERO"
-    if any(k in text for k in ["helldiver", "super earth", "automaton", "terminid"]):
-        return "Helldivers 2"
-    if any(k in text for k in ["mirrors edge", "mirror's edge", "parkour"]):
-        return "Skate (Mirror's Edge Series)"
-    if "cyberpunk" in text or "2077" in text or "killmonger" in text:
-        return "Cyberpunk 2077"
-    if "ready or not" in text:
-        return "Ready or Not"
-    if "dying light" in text:
-        return "Dying Light: The Beast"
-    if "rooftops" in text or "alleys" in text:
-        return "Rooftops & Alleys"
-    if "yotei" in text or "tsushima" in text:
-        return "Ghost of Tsushima / Yōtei"
-    if "gta" in text or "los santos" in text:
-        return "GTA"
-
-    # 2. Second priority: Fallback to exact timeline windows
+def classify_content_multidim(row):
     post_date = row.get("Date")
     if pd.isna(post_date):
-        return "Unknown / Unclassified"
+        d = ""
+    else:
+        d = post_date.strftime("%Y-%m-%d")
 
-    # Convert to pure string date format YYYY-MM-DD for clean comparison
-    d = post_date.strftime("%Y-%m-%d")
+    # Combine any surviving text fields
+    text = f"{row.get('Title', '')} {row.get('AlternateText', '')} {row.get('Sound', '')}".lower()
+    sound = str(row.get("Sound", "")).lower()
+    likes = int(row.get("Likes", 0))
 
-    # Era 1: Initial Helldivers Launch & Photography (Jun 5, 2024 - Oct 6, 2024)
-    if "2024-06-05" <= d <= "2024-10-06":
-        return "Helldivers 2 (Launch Era)"
-    
-    # Era 2: Sparking Zero Viral Surge (Oct 7, 2024 - Oct 21, 2024)
+    # =========================================================================
+    # 1. PRIMARY GAME CLASSIFICATION
+    # =========================================================================
+
+    # Explicit Game Mentions in Metadata / Sound
+    if any(k in text for k in ["sparking zero", "dragon ball", "budokai"]):
+        game = "Dragon Ball: Sparking! ZERO"
+    elif any(k in text for k in ["ready or not"]):
+        game = "Ready or Not"
+    elif any(k in text for k in ["cyberpunk", "2077", "killmonger", "night city", "silverhand"]):
+        game = "Cyberpunk 2077"
+    elif any(k in text for k in ["gta", "grand theft auto", "los santos"]):
+        game = "GTA"
+    elif any(k in text for k in ["hell let loose", "hll"]):
+        game = "Hell Let Loose"
+    elif any(k in text for k in ["dying light", "the beast"]):
+        game = "Dying Light: The Beast"
+    elif any(k in text for k in ["mirrors edge", "mirror's edge", "parkour"]):
+        game = "Skate"
+    elif any(k in text for k in [
+        "need for speed", "nfs", "crew motorfest", "motorfest", "wukong",
+        "battlefield", "tsushima", "yotei", "assassin", "content warning",
+        "rooftops and alleys", "rooftops", "alleys"
+    ]):
+        game = "Other Games"
+
+    # Timeline-Anchored Fallbacks
+    elif "2024-06-05" <= d <= "2024-10-06":
+        game = "Helldivers 2"
     elif "2024-10-07" <= d <= "2024-10-21":
-        return "Dragon Ball: Sparking! ZERO"
-    
-    # Era 3: Fall Helldivers Return (Oct 22, 2024 - Nov 12, 2024)
+        game = "Dragon Ball: Sparking! ZERO"
     elif "2024-10-22" <= d <= "2024-11-12":
-        return "Helldivers 2 (Fall Return)"
-    
-    # Gap / Single post (Nov 13, 2024 - Mar 2, 2025)
+        game = "Helldivers 2"
     elif "2024-11-13" <= d <= "2025-03-02":
-        return "Call of Duty / Hiatus"
+        game = "Call of Duty / Hiatus"
+    elif "2025-03-03" <= d <= "2025-09-08":
+        game = "Helldivers 2"
+    elif "2025-09-09" <= d <= "2025-10-10":
+        game = "Skate"
+    elif d >= "2025-10-11":
+        if "rapmorelikecap" in sound or likes >= 100000:
+            game = "Skate"
+        elif "linkin park" in sound or "belong" in sound or likes >= 40000:
+            game = "Skate"
+        elif "tmnt" in sound or "turtles" in sound:
+            game = "Gaming Mashup"
+        else:
+            game = "Helldivers 2"
+    else:
+        game = "Other Games"
 
-    # Era 4: Spring/Summer Prime - Heavy Helldivers & Early Tactical (Mar 3, 2025 - Sep 16, 2025)
-    elif "2025-03-03" <= d <= "2025-09-16":
-        return "Helldivers 2 (Core Stride)"
+    # =========================================================================
+    # 2. SUB-THEME / CREATIVE INTENT
+    # =========================================================================
 
-    # Era 5: The Viral Skate / Mirror's Edge Launch (Sep 17, 2025 - Oct 5, 2025)
-    elif "2025-09-17" <= d <= "2025-10-05":
-        return "Skate (Mirror's Edge Series)"
+    if "2024-06-05" <= d <= "2024-06-11" and game == "Helldivers 2":
+        sub_theme = "War Photography (No-HUD Stills)"
+    elif "2024-10-07" <= d <= "2024-10-21" and game == "Dragon Ball: Sparking! ZERO":
+        sub_theme = "Creator On-Camera / Hype"
+    elif game == "Skate":
+        if any(k in text for k in ["parkour", "mirror", "rapmorelikecap"]) or likes >= 30000:
+            sub_theme = "Mirror's Edge Parkour Series"
+        else:
+            sub_theme = "Street & Park Skate Lines"
+    elif game == "Helldivers 2":
+        if any(k in sound for k in ["corpse after corpse", "kanye", "never see me again", "phonk"]):
+            sub_theme = "Cinematic / High-Energy Edit"
+        elif any(k in sound for k in ["original sound", "gameplay"]):
+            sub_theme = "Raw Survival / Intense Fights"
+        else:
+            sub_theme = "Comedy / Tactical Squad Highlights"
+    elif game == "Ready or Not":
+        sub_theme = "Tactical Breach & CQB"
+    elif game == "Hell Let Loose":
+        sub_theme = "Hardcore Mil-Sim Frontline"
+    elif game == "Dragon Ball: Sparking! ZERO":
+        sub_theme = "Arena Combat & Speculation"
+    elif game == "Gaming Mashup":
+        sub_theme = "Fast-Paced Cross-Game Montage"
+    elif game == "Dying Light: The Beast":
+        sub_theme = "Survival & Combat Action"
+    else:
+        sub_theme = "Gameplay Showcase"
 
-    # Era 6: Mashup Variety & Experimentation (Oct 6, 2025 - Jan 22, 2026)
-    elif "2025-10-06" <= d <= "2026-01-22":
-        return "Gaming Mashup (Helldivers/Skate/Dying Light)"
+    # =========================================================================
+    # 3. CONTENT FORMAT
+    # =========================================================================
 
-    # Era 7: Modern Variety & Lifestyle Gaming (Feb 21, 2026 - Present)
-    elif d >= "2026-01-23":
-        return "Current Variety (Helldivers/Skate/GTA/Friends)"
+    if sub_theme == "War Photography (No-HUD Stills)":
+        content_format = "Stills / Lightroom War Photos"
+    elif sub_theme == "Creator On-Camera / Hype":
+        content_format = "Talking Head / Reaction"
+    elif any(k in sound for k in ["phonk", "sped up", "theme song", "rapmorelikecap", "linkin park", "kanye", "tmnt"]) or likes >= 5000:
+        content_format = "Stylized Edit / Montage"
+    else:
+        content_format = "Raw Gameplay / Squad Clip"
 
-    return "Other / Miscellaneous"
+    return pd.Series(
+        [game, sub_theme, content_format],
+        index=["Primary_Game", "Sub_Theme", "Content_Format"]
+    )
 
 def load_and_clean_tiktok_data(file_path="data.json"):
     with open(file_path, "r", encoding="utf-8") as f:
@@ -97,8 +146,14 @@ def load_and_clean_tiktok_data(file_path="data.json"):
         else:
             df[col] = ""
 
-    # Classify content
-    df["Content_Category"] = df.apply(classify_content, axis=1)
+    # Multi-dimensional classification
+    multi_dim = df.apply(classify_content_multidim, axis=1)
+    df["Primary_Game"] = multi_dim["Primary_Game"]
+    df["Sub_Theme"] = multi_dim["Sub_Theme"]
+    df["Content_Format"] = multi_dim["Content_Format"]
+    
+    # Composite category for backward compatibility with app.py
+    df["Content_Category"] = df["Primary_Game"] + " - " + df["Sub_Theme"]
 
     # Core performance ratios
     df["Save_Rate_Pct"] = np.where(
@@ -116,17 +171,34 @@ if __name__ == "__main__":
     print(f" TOTAL ARCHIVE: {len(df)} POSTS PROCESSED")
     print("=======================================================")
 
-    print("\n--- PERFORMANCE BY ERA / CATEGORY ---")
-    era_summary = df.groupby("Content_Category").agg(
+    print("\n--- PERFORMANCE BY PRIMARY GAME ---")
+    game_summary = df.groupby("Primary_Game").agg(
         Total_Posts=("Likes", "count"),
         Total_Likes=("Likes", "sum"),
         Avg_Likes=("Likes", "mean"),
         Max_Likes=("Likes", "max")
     ).sort_values(by="Total_Likes", ascending=False)
-    
-    era_summary["Avg_Likes"] = era_summary["Avg_Likes"].round(1)
-    print(era_summary.to_string())
+    game_summary["Avg_Likes"] = game_summary["Avg_Likes"].round(1)
+    print(game_summary.to_string())
+
+    print("\n--- PERFORMANCE BY CONTENT FORMAT ---")
+    format_summary = df.groupby("Content_Format").agg(
+        Total_Posts=("Likes", "count"),
+        Total_Likes=("Likes", "sum"),
+        Avg_Likes=("Likes", "mean")
+    ).sort_values(by="Total_Likes", ascending=False)
+    format_summary["Avg_Likes"] = format_summary["Avg_Likes"].round(1)
+    print(format_summary.to_string())
+
+    print("\n--- TOP SUB-THEMES (TOP 8 BY LIKES) ---")
+    theme_summary = df.groupby(["Primary_Game", "Sub_Theme"]).agg(
+        Total_Posts=("Likes", "count"),
+        Total_Likes=("Likes", "sum"),
+        Avg_Likes=("Likes", "mean")
+    ).sort_values(by="Total_Likes", ascending=False).head(8)
+    theme_summary["Avg_Likes"] = theme_summary["Avg_Likes"].round(1)
+    print(theme_summary.to_string())
 
     print("\n--- ALL-TIME TOP 5 OUTLIERS ---")
-    top_cols = ["Date", "Content_Category", "Likes", "Saves", "Sound"]
+    top_cols = ["Date", "Primary_Game", "Sub_Theme", "Content_Format", "Likes", "Sound"]
     print(df.sort_values(by="Likes", ascending=False)[top_cols].head(5).to_string(index=False))
